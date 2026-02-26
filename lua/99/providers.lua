@@ -27,6 +27,23 @@ function BaseProvider.fetch_models(callback)
   callback(nil, "This provider does not support listing models")
 end
 
+--- @return boolean
+function BaseProvider._stdout_as_response()
+  return false
+end
+
+--- @param text string
+--- @return string
+function BaseProvider.strip_markdown_fences(text)
+  local lines = vim.split(text, "\n")
+  if #lines >= 2 and lines[1]:match("^```%w*$") and lines[#lines]:match("^```$") then
+    table.remove(lines, 1)
+    table.remove(lines, #lines)
+    return table.concat(lines, "\n")
+  end
+  return text
+end
+
 --- @param context _99.Prompt
 function BaseProvider:_retrieve_response(context)
   local logger = context.logger:set_area(self:_get_provider_name())
@@ -72,6 +89,9 @@ function BaseProvider:make_request(query, context, observer)
   local command = self:_build_command(query, context)
   logger:debug("make_request", "command", command)
 
+  local stdout_chunks = {}
+  local capture_stdout = self._stdout_as_response()
+
   local proc = vim.system(
     command,
     {
@@ -86,6 +106,9 @@ function BaseProvider:make_request(query, context, observer)
           logger:debug("stdout#error", "err", err)
         end
         if not err and data then
+          if capture_stdout then
+            table.insert(stdout_chunks, data)
+          end
           observer.on_stdout(data)
         end
       end),
@@ -120,6 +143,13 @@ function BaseProvider:make_request(query, context, observer)
         )
       else
         vim.schedule(function()
+          if capture_stdout then
+            local raw = table.concat(stdout_chunks, "")
+            local cleaned = BaseProvider.strip_markdown_fences(vim.trim(raw))
+            if cleaned ~= "" then
+              vim.fn.writefile(vim.split(cleaned, "\n"), context.tmp_file)
+            end
+          end
           local ok, res = self:_retrieve_response(context)
           if ok then
             once_complete("success", res)
@@ -200,6 +230,10 @@ function ClaudeCodeProvider._get_provider_name()
   return "ClaudeCodeProvider"
 end
 
+function ClaudeCodeProvider._stdout_as_response()
+  return true
+end
+
 --- @return string
 function ClaudeCodeProvider._get_default_model()
   return "claude-sonnet-4-5"
@@ -236,6 +270,10 @@ end
 --- @return string
 function CursorAgentProvider._get_provider_name()
   return "CursorAgentProvider"
+end
+
+function CursorAgentProvider._stdout_as_response()
+  return true
 end
 
 --- @return string
