@@ -7,11 +7,6 @@ function M.parse_line(line)
     return nil
   end
 
-  local col_raw, _, notes = rest:match("^([^,]+),([^,]+),?(.*)$")
-  if not col_raw then
-    return nil
-  end
-
   local lnum = tonumber(lnum_raw) or 1
   local col = tonumber(col_raw) or 1
 
