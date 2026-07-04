@@ -234,15 +234,20 @@ local CursorAgentProvider = setmetatable({}, { __index = BaseProvider })
 --- @param context _99.Prompt
 --- @return string
 local function cursor_agent_prompt_file(context)
-  local path = vim.fn.fnamemodify(context.tmp_file .. "-prompt", ":p")
-  path = vim.fs.normalize(path)
-  if vim.fn.filereadable(path) ~= 1 then
-    path = vim.fs.normalize(vim.fn.fnamemodify(
-      vim.fs.joinpath(vim.fn.getcwd(), context.tmp_file .. "-prompt"),
+  local rel = context.tmp_file .. "-prompt"
+  local candidates = {
+    vim.fs.normalize(vim.fn.fnamemodify(rel, ":p")),
+    vim.fs.normalize(vim.fn.fnamemodify(
+      vim.fs.joinpath(vim.fn.getcwd(), rel),
       ":p"
-    ))
+    )),
+  }
+  for _, path in ipairs(candidates) do
+    if vim.fn.filereadable(path) == 1 then
+      return path
+    end
   end
-  return path
+  return candidates[1]
 end
 
 --- @param context _99.Prompt

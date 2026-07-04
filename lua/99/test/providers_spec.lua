@@ -68,6 +68,21 @@ describe("providers", function()
       assert(not print_arg:match("\n"))
     end)
 
+    it("prompt file path prefers a readable candidate", function()
+      local tmp_dir = vim.fn.tempname()
+      vim.fn.mkdir(tmp_dir, "p")
+      local tmp_file = tmp_dir .. "/99-5678"
+      vim.fn.writefile({ "" }, tmp_file .. "-prompt")
+      local cmd = Providers.CursorAgentProvider._build_command(
+        nil,
+        "",
+        { model = "sonnet-4.5", tmp_file = tmp_file }
+      )
+      assert(vim.fn.filereadable(tmp_file .. "-prompt") == 1)
+      assert(cmd[#cmd]:match("99%-5678%-prompt"))
+      vim.fn.delete(tmp_dir, "rf")
+    end)
+
     it("has correct default model", function()
       eq("sonnet-4.5", Providers.CursorAgentProvider._get_default_model())
     end)
