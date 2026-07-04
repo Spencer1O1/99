@@ -99,6 +99,26 @@ describe("providers", function()
       assert(out:match("C:\\Dev\\test\\test.js:6:1,6"))
       assert(not out:match("file%.js:5"))
     end)
+
+    it("normalize_qfix_response ignores qfix-like strings in plain code fences", function()
+      local text = table.concat({
+        "```javascript",
+        'const x = err("file.js:5:3,4,msg")',
+        "```",
+      }, "\n")
+      eq("", Providers.CursorAgentProvider.normalize_qfix_response(text))
+    end)
+
+    it("normalize_qfix_response keeps qfix lines outside code fences", function()
+      local line = "C:/project/file.lua:10:1,3,note"
+      local text = table.concat({
+        line,
+        "```javascript",
+        'const x = err("file.js:5:3,4,msg")',
+        "```",
+      }, "\n")
+      eq(line, Providers.CursorAgentProvider.normalize_qfix_response(text))
+    end)
   end)
 
   describe("GeminiCLIProvider", function()

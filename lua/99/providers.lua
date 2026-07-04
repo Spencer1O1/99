@@ -342,6 +342,20 @@ end
 
 --- @param text string
 --- @return string
+local function cursor_agent_text_outside_fences(text)
+  local out, in_fence = {}, false
+  for line in vim.gsplit(text or "", "\n", true) do
+    if line:match("^```") then
+      in_fence = not in_fence
+    elseif not in_fence then
+      out[#out + 1] = line
+    end
+  end
+  return table.concat(out, "\n")
+end
+
+--- @param text string
+--- @return string
 function CursorAgentProvider.normalize_qfix_response(text)
   local hits, seen = {}, {}
 
@@ -376,7 +390,7 @@ function CursorAgentProvider.normalize_qfix_response(text)
     return table.concat(hits, "\n")
   end
 
-  for line in vim.gsplit(text, "\n", true) do
+  for line in vim.gsplit(cursor_agent_text_outside_fences(text), "\n", true) do
     line = vim.trim(line)
     if QFixHelpers.parse_line(line) and not seen[line] then
       seen[line] = true
