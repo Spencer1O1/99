@@ -362,22 +362,25 @@ function CursorAgentProvider.normalize_qfix_response(text)
     )
   end
 
-  for line in vim.gsplit(text or "", "\n", true) do
-    line = vim.trim(line)
-    if QFixHelpers.parse_line(line) and not seen[line] then
-      seen[line] = true
-      hits[#hits + 1] = line
+  text = text or ""
+
+  -- Citation fences first — code lines inside a fence can false-match qfix parsing.
+  for sl, el, path in text:gmatch("```(%d+):(%d+):([^\r\n]+)") do
+    sl = tonumber(sl)
+    el = tonumber(el)
+    if sl and el and path then
+      add(path, sl, 1, math.max(1, el - sl + 1), "match")
     end
   end
   if #hits > 0 then
     return table.concat(hits, "\n")
   end
 
-  for sl, el, path in (text or ""):gmatch("```(%d+):(%d+):([^\r\n]+)") do
-    sl = tonumber(sl)
-    el = tonumber(el)
-    if sl and el and path then
-      add(path, sl, 1, math.max(1, el - sl + 1), "match")
+  for line in vim.gsplit(text, "\n", true) do
+    line = vim.trim(line)
+    if QFixHelpers.parse_line(line) and not seen[line] then
+      seen[line] = true
+      hits[#hits + 1] = line
     end
   end
   return table.concat(hits, "\n")

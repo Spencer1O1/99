@@ -88,6 +88,17 @@ describe("providers", function()
       local line = "C:/project/file.lua:10:1,3,note"
       eq(line, Providers.CursorAgentProvider.normalize_qfix_response(line))
     end)
+
+    it("normalize_qfix_response ignores qfix-like strings inside citation fences", function()
+      local text = table.concat({
+        "```6:11:C:\\Dev\\test\\test.js",
+        'const x = err("file.js:5:3,4,msg")',
+        "```",
+      }, "\n")
+      local out = Providers.CursorAgentProvider.normalize_qfix_response(text)
+      assert(out:match("C:\\Dev\\test\\test.js:6:1,6"))
+      assert(not out:match("file%.js:5"))
+    end)
   end)
 
   describe("GeminiCLIProvider", function()
