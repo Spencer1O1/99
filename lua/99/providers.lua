@@ -35,6 +35,13 @@ function BaseProvider._stdout_as_response()
   return false
 end
 
+--- @param existing string
+--- @param cleaned string
+--- @return boolean
+function BaseProvider._skip_stdout_tmp_write(_existing, _cleaned)
+  return false
+end
+
 --- @param text string
 --- @return string
 function BaseProvider.strip_markdown_fences(text)
@@ -153,7 +160,12 @@ function BaseProvider:make_request(query, context, observer)
           if capture_stdout then
             local raw = table.concat(stdout_chunks, "")
             local cleaned = BaseProvider.strip_markdown_fences(vim.trim(raw))
-            if cleaned ~= "" then
+            local existing = ""
+            local ok_read, lines = pcall(vim.fn.readfile, context.tmp_file)
+            if ok_read then
+              existing = table.concat(lines, "\n")
+            end
+            if cleaned ~= "" and not self._skip_stdout_tmp_write(existing, cleaned) then
               vim.fn.writefile(vim.split(cleaned, "\n"), context.tmp_file)
             end
           end
@@ -237,13 +249,13 @@ function ClaudeCodeProvider._get_provider_name()
   return "ClaudeCodeProvider"
 end
 
-function ClaudeCodeProvider._stdout_as_response()
-  return true
-end
-
 --- @return string
 function ClaudeCodeProvider._get_default_model()
   return "claude-sonnet-4-5"
+end
+
+function ClaudeCodeProvider._stdout_as_response()
+  return true
 end
 
 -- TODO: the claude CLI has no way to list available models.
@@ -426,34 +438,58 @@ function CursorAgentProvider:_retrieve_response(context)
   local ws = cursor_agent_workspace(context)
   local tmp = cursor_agent_read_first(cursor_agent_tmp_paths(context.tmp_file, ws))
 
-  local function finish(text)
+  local function finish(text, had_content)
     if CURSOR_AGENT_QFIX_OPS[context.operation] then
       text = CursorAgentProvider.normalize_qfix_response(text)
     end
     if text:match("%S") then
       return true, text
     end
+    if had_content and CURSOR_AGENT_QFIX_OPS[context.operation] then
+      context.logger:debug(
+        "retrieve_results",
+        "note",
+        "temp file had content but no qfix lines parsed"
+      )
+      return true, ""
+    end
     return false, ""
   end
 
   if tmp:match("%S") then
-    return finish(tmp)
+    return finish(tmp, true)
   end
 
   local ok, text = BaseProvider._retrieve_response(self, context)
   if ok and text:match("%S") then
-    return finish(text)
+    return finish(text, true)
+  end
+  if ok and CURSOR_AGENT_QFIX_OPS[context.operation] then
+    return true, ""
   end
   return false, ""
+end
+
+function CursorAgentProvider._stdout_as_response()
+  return true
+end
+
+--- @param existing string
+--- @param cleaned string
+--- @return boolean
+function CursorAgentProvider._skip_stdout_tmp_write(existing, cleaned)
+  if existing:match("%S") and CursorAgentProvider.normalize_qfix_response(existing):match("%S") then
+    return true
+  end
+  if cleaned:match("^Done%.") or cleaned:match("^Task complete") or cleaned:match("Results are in") then
+    return true
+  end
+  return false
 end
 
 --- @return string
 function CursorAgentProvider._get_provider_name()
   return "CursorAgentProvider"
-end
-
-function CursorAgentProvider._stdout_as_response()
-  return true
 end
 
 --- @return string
